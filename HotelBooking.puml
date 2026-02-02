@@ -1,0 +1,149 @@
+@startuml HotelBookingSystem_Final
+
+' --- 1. TRÌNH BÀY (Yêu cầu: Linetype ortho, bỏ package, hiển thị +/-) ---
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam monochrome true
+skinparam shadowing false
+hide circle
+
+title Class Diagram - Hotel Booking Module
+
+' --- 2. CẤU TRÚC 3 LỚP (Yêu cầu: Stereotypes) ---
+
+' --- LAYER: CONTROLLER ---
+class BookingController <<Controller>> {
+    - bookingService : IBookingService
+    - logger : Logger
+    - requestContext : Context
+    + makeReservation(guestId: String, roomIds: List<String>) : Response
+    + cancelReservation(bookingId: String) : Response
+    + getBookingDetails(bookingId: String) : Response
+}
+
+' --- LAYER: SERVICE ---
+interface IBookingService <<Interface>> {
+    + checkAvailability(rooms: List, dates: DateRange) : bool
+    + calculateTotal(booking: Booking) : double
+    + applyDiscount(booking: Booking, code: String) : double
+}
+
+class BookingService <<Service>> {
+    - bookingRepository : IBookingRepository
+    - emailService : IEmailService
+    - promotionConfig : Config
+    + checkAvailability(rooms: List, dates: DateRange) : bool
+    + calculateTotal(booking: Booking) : double
+    + createBooking(booking: Booking) : bool
+    - validateBookingRules(booking: Booking) : void
+}
+
+' --- LAYER: REPOSITORY ---
+interface IBookingRepository <<Repository>> {
+    - connectionString : String
+    - dbContext : DBContext
+    - timeout : int
+    + save(booking: Booking) : Booking
+    + delete(id: String) : void
+    + findById(id: String) : Booking
+    + findAllByGuest(guestId: String) : List<Booking>
+}
+
+' --- LAYER: ENTITIES (Yêu cầu: 3 thuộc tính, 2 phương thức) ---
+
+class Hotel <<Entity>> {
+    - hotelId : String
+    - name : String
+    - address : String
+    - isActive : bool
+    + updateInfo(name: String, addr: String) : void
+    + shutdownSystem() : void
+}
+
+class Room <<Entity>> {
+    - roomId : String
+    - roomNumber : String
+    - currentStatus : String
+    - floor : int
+    + markAsOccupied() : void
+    + markAsClean() : void
+}
+
+class RoomType <<Entity>> {
+    - typeId : String
+    - typeName : String
+    - basePrice : double
+    - amenities : List<String>
+    + updatePrice(newPrice: double) : void
+    + addAmenity(item: String) : void
+}
+
+class Guest <<Entity>> {
+    - guestId : String
+    - fullName : String
+    - phoneNumber : String
+    - email : String
+    + updateProfile(data: Map) : void
+    + getBookingHistory() : List<Booking>
+}
+
+class Booking <<Entity>> {
+    - bookingId : String
+    - checkInDate : Date
+    - checkOutDate : Date
+    - totalAmount : double
+    + addRoom(room: Room) : void
+    + confirmBooking() : void
+}
+
+class Invoice <<Entity>> {
+    - invoiceId : String
+    - taxCode : String
+    - issuedDate : Date
+    - finalAmount : double
+    + printInvoice() : void
+    + sendToTaxAuthority() : void
+}
+
+class Payment <<Entity>> {
+    - paymentId : String
+    - amount : double
+    - method : String
+    - status : String
+    + processTransaction() : bool
+    + refund() : void
+}
+
+' --- 3. KÝ HIỆU QUAN HỆ & BỘI SỐ (Yêu cầu: Đúng ký hiệu, có Multiplicity) ---
+
+' Dependency (..>): Controller phụ thuộc vào Interface Service
+BookingController ..> IBookingService : uses
+
+' Realization (<|..): Service thực thi Interface
+IBookingService <|.. BookingService : implements
+
+' Association (-->): Service liên kết với Repository
+BookingService --> IBookingRepository : uses
+
+' Composition (*--): Hotel quản lý Room (Hotel hủy -> Room hủy)
+Hotel "1" *-- "1..*" Room : contains
+
+' Association (-->): Room thuộc về RoomType
+Room "0..*" --> "1" RoomType : has type
+
+' Aggregation (o--): Guest có Booking (Guest hủy -> Booking giữ lại thống kê)
+Guest "1" o-- "0..*" Booking : makes
+
+' Association (-->): Booking bao gồm Room
+Booking "0..*" --> "1..*" Room : includes
+
+' Aggregation (o--): Booking có Invoice (Booking hủy -> Invoice giữ lại báo cáo thuế)
+Booking "1" o-- "1..*" Invoice : generates
+
+' Composition (*--): Booking có Payment (Booking hủy sạch -> Payment mất)
+Booking "1" *-- "0..*" Payment : owns
+
+' Dependency (..>): Service phụ thuộc Entity để xử lý logic
+BookingService ..> Room : checks status
+
+@enduml
